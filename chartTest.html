@@ -8,7 +8,7 @@
     <style>
         #chartdiv, #chartdiv2 {
             width: 100%;
-            height: 500px;
+            height: 700px;
         }
     </style>
 
@@ -149,7 +149,7 @@
                 }));
 
                 series.columns.template.setAll({
-                    tooltipText: "{name}: {valueXTotalPercent.formatNumber('#.#')}%",
+                    tooltipText: "{name}: {valueX}",
                     tooltipY: am5.percent(90)
                 });
 
@@ -170,7 +170,7 @@
                 series.bullets.push(function () {
                     return am5.Bullet.new(root, {
                         sprite: am5.Label.new(root, {
-                            text: "{valueX}",
+                            text: "{valueXTotalPercent.formatNumber('#.#')}%",
                             fill: root.interfaceColors.get("alternativeText"),
                             centerY: am5.p50,
                             centerX: am5.p50,

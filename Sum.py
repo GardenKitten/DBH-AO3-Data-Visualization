@@ -3,7 +3,7 @@ import json
 from collections import Counter
 
 # 读取CSV文件
-df = pd.read_csv('Carter／Norman/works.csv')
+df = pd.read_csv('1700/works.csv')
 
 # 将日期按升序排列
 df['date_updated'] = pd.to_datetime(df['date_updated'])
@@ -26,14 +26,14 @@ for date, count in df['date_updated'].value_counts().sort_index().items():
 
 # 将统计结果包装在一个JSON对象中
 count_data = {
-    "relationship": "Carter Blake/Norman Jayden",
+    "relationship": "1700",
     "rating_counts": rating_counts,
     "warnings_counts": warnings_counts,
     "date_counts": date_counts
 }
 
 # 将统计结果保存到JSON文件
-with open('Carter／Norman/counts.json', 'w') as json_file:
+with open('1700/counts.json', 'w') as json_file:
     json.dump(count_data, json_file, indent=4)
 
 print("统计结果已成功保存到counts.json文件中")

@@ -32,8 +32,8 @@ am5.ready(function() {
             // Parse the input data into the format required for the chart
             var allData = {};
             var relationships = new Set();
-            var minDate = new Date("2100-01-01");
-            var maxDate = new Date("1900-01-01");
+            var minDate = new Date("2025-01-01");
+            var maxDate = new Date("2018-01-01");
 
             inputData.forEach(function(item) {
                 var relationship = item.relationship;
@@ -69,7 +69,7 @@ am5.ready(function() {
                 smallNumberPrefixes: []
             });
 
-            var stepDuration = 1000;
+            var stepDuration = 300;
 
             // Set themes
             root.setThemes([am5themes_Animated.new(root)]);
@@ -105,8 +105,13 @@ am5.ready(function() {
                 min: 0,
                 strictMinMax: true,
                 extraMax: 0.1,
+                numberFormat: "#",
                 renderer: am5xy.AxisRendererX.new(root, {})
             }));
+
+            xAxis.get("renderer").labels.template.setAll({
+                maxPrecision: 0
+            });
 
             xAxis.set("interpolationDuration", stepDuration / 10);
             xAxis.set("interpolationEasing", am5.ease.linear);
