@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bar Chart Race</title>
+
+    <!-- Styles -->
+    <style>
+        #chartdiv {
+            width: 100%;
+            height: 500px;
+        }
+    </style>
+    <!-- Resources -->
+    <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+<!-- HTML -->
+<div id="chartdiv"></div>
+
+<!-- Chart code -->
+<script>
+am5.ready(function() {
+    // Load data using Ajax
+    $.ajax({
+        url: 'total_counts.json',
+        dataType: 'json',
+        success: function(inputData) {
+            // Parse the input data into the format required for the chart
+            var allData = {};
+            var relationships = new Set();
+            var minDate = new Date("2100-01-01");
+            var maxDate = new Date("1900-01-01");
+
+            inputData.forEach(function(item) {
+                var relationship = item.relationship;
+                relationships.add(relationship);
+                Object.keys(item.date_counts).forEach(function(date) {
+                    var value = item.date_counts[date];
+                    var parsedDate = new Date(date);
+                    if (parsedDate < minDate) minDate = parsedDate;
+                    if (parsedDate > maxDate) maxDate = parsedDate;
+                    var yearMonthDay = date.split("T")[0];
+                    if (!allData[yearMonthDay]) {
+                        allData[yearMonthDay] = {};
+                    }
+                    allData[yearMonthDay][relationship] = value;
+                });
+            });
+
+            // Initialize current values
+            var currentValues = {};
+            relationships.forEach(function(relationship) {
+                currentValues[relationship] = 0;
+            });
+
+            // Create root element
+            var root = am5.Root.new("chartdiv");
+
+            root.numberFormatter.setAll({
+                numberFormat: "#a",
+                bigNumberPrefixes: [
+                    { number: 1e6, suffix: "M" },
+                    { number: 1e9, suffix: "B" }
+                ],
+                smallNumberPrefixes: []
+            });
+
+            var stepDuration = 1000;
+
+            // Set themes
+            root.setThemes([am5themes_Animated.new(root)]);
+
+            // Create chart
+            var chart = root.container.children.push(am5xy.XYChart.new(root, {
+                panX: true,
+                panY: true,
+                wheelX: "none",
+                wheelY: "none",
+                paddingLeft: 0
+            }));
+
+            // We don't want zoom-out button to appear while animating, so we hide it at all
+            chart.zoomOutButton.set("forceHidden", true);
+
+            // Create axes
+            var yRenderer = am5xy.AxisRendererY.new(root, {
+                minGridDistance: 20,
+                inversed: true,
+                minorGridEnabled: true
+            });
+            yRenderer.grid.template.set("visible", false);
+
+            var yAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, {
+                maxDeviation: 0,
+                categoryField: "relationship",
+                renderer: yRenderer
+            }));
+
+            var xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, {
+                maxDeviation: 0,
+                min: 0,
+                strictMinMax: true,
+                extraMax: 0.1,
+                renderer: am5xy.AxisRendererX.new(root, {})
+            }));
+
+            xAxis.set("interpolationDuration", stepDuration / 10);
+            xAxis.set("interpolationEasing", am5.ease.linear);
+
+            // Add series
+            var series = chart.series.push(am5xy.ColumnSeries.new(root, {
+                xAxis: xAxis,
+                yAxis: yAxis,
+                valueXField: "value",
+                categoryYField: "relationship"
+            }));
+
+            series.columns.template.setAll({ cornerRadiusBR: 5, cornerRadiusTR: 5 });
+
+            series.columns.template.adapters.add("fill", function(fill, target) {
+                return chart.get("colors").getIndex(series.columns.indexOf(target));
+            });
+
+            series.columns.template.adapters.add("stroke", function(stroke, target) {
+                return chart.get("colors").getIndex(series.columns.indexOf(target));
+            });
+
+            series.bullets.push(function() {
+                return am5.Bullet.new(root, {
+                    locationX: 1,
+                    sprite: am5.Label.new(root, {
+                        text: "{valueXWorking.formatNumber('#.# a')}",
+                        fill: root.interfaceColors.get("alternativeText"),
+                        centerX: am5.p100,
+                        centerY: am5.p50,
+                        populateText: true
+                    })
+                });
+            });
+
+            var label = chart.plotContainer.children.push(am5.Label.new(root, {
+                text: minDate.toISOString().split("T")[0],
+                fontSize: "2em",
+                opacity: 0.5,
+                x: am5.p100,
+                y: am5.p100,
+                centerY: am5.p100,
+                centerX: am5.p100
+            }));
+
+            // Get series item by category
+            function getSeriesItem(category) {
+                for (var i = 0; i < series.dataItems.length; i++) {
+                    var dataItem = series.dataItems[i];
+                    if (dataItem.get("categoryY") == category) {
+                        return dataItem;
+                    }
+                }
+            }
+
+            // Axis sorting
+            function sortCategoryAxis() {
+                series.dataItems.sort(function(x, y) {
+                    return y.get("valueX") - x.get("valueX");
+                });
+
+                am5.array.each(yAxis.dataItems, function(dataItem) {
+                    var seriesDataItem = getSeriesItem(dataItem.get("category"));
+                    if (seriesDataItem) {
+                        var index = series.dataItems.indexOf(seriesDataItem);
+                        var deltaPosition = (index - dataItem.get("index", 0)) / series.dataItems.length;
+                        if (dataItem.get("index") != index) {
+                            dataItem.set("index", index);
+                            dataItem.set("deltaPosition", -deltaPosition);
+                            dataItem.animate({
+                                key: "deltaPosition",
+                                to: 0,
+                                duration: stepDuration / 2,
+                                easing: am5.ease.out(am5.ease.cubic)
+                            });
+                        }
+                    }
+                });
+                yAxis.dataItems.sort(function(x, y) {
+                    return x.get("index") - y.get("index");
+                });
+            }
+
+            var currentDate = new Date(minDate);
+            var endDate = new Date(maxDate);
+
+            // Update data function
+            function updateData() {
+                var yearMonthDay = currentDate.toISOString().split("T")[0];
+                if (allData[yearMonthDay]) {
+                    label.set("text", yearMonthDay);
+
+                    am5.array.each(series.dataItems, function(dataItem) {
+                        var category = dataItem.get("categoryY");
+                        var value = allData[yearMonthDay][category];
+
+                        // If there is a value for this date, update it; otherwise, keep the previous value
+                        if (value !== undefined) {
+                            currentValues[category] = value;
+                        } else {
+                            value = currentValues[category];
+                        }
+
+                        dataItem.animate({
+                            key: "valueX",
+                            to: value,
+                            duration: stepDuration,
+                            easing: am5.ease.linear
+                        });
+                        dataItem.animate({
+                            key: "valueXWorking",
+                            to: value,
+                            duration: stepDuration,
+                            easing: am5.ease.linear
+                        });
+                    });
+
+                    yAxis.zoom(0, 1);
+                }
+            }
+
+            // Initialize data
+            function setInitialData() {
+                relationships.forEach(function(relationship) {
+                    series.data.push({ relationship: relationship, value: currentValues[relationship] });
+                    yAxis.data.push({ relationship: relationship });
+                });
+            }
+
+            setInitialData();
+
+            var interval = setInterval(function() {
+                currentDate.setDate(currentDate.getDate() + 1);
+
+                if (currentDate > endDate) {
+                    clearInterval(interval);
+                    clearInterval(sortInterval);
+                }
+
+                updateData();
+            }, stepDuration);
+
+            var sortInterval = setInterval(function() {
+                sortCategoryAxis();
+            }, 100);
+
+            // Make stuff animate on load
+            series.appear(1000);
+            chart.appear(1000, 100);
+        },
+        error: function(error) {
+            console.error("Failed to load data", error);
+        }
+    });
+
+}); // end am5.ready()
+</script>
+</body>
+</html>

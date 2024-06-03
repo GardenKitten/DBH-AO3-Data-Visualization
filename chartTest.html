@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <!-- Styles -->
+    <style>
+        #chartdiv, #chartdiv2 {
+            width: 100%;
+            height: 500px;
+        }
+    </style>
+
+    <!-- Resources -->
+    <script src="https://cdn.amcharts.com/lib/5/plugins/exporting.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+<!-- HTML -->
+<div id="chartdiv"></div>
+<div id="chartdiv2"></div>
+
+<!-- Chart code -->
+<script>
+
+    am5.ready(function () {
+        // Create root elements
+        var root = am5.Root.new("chartdiv");
+        var root2 = am5.Root.new("chartdiv2");
+
+        // Create exporting menu for the first chart
+        var exporting = am5plugins_exporting.Exporting.new(root, {
+            menu: am5plugins_exporting.ExportingMenu.new(root, {
+                align: "left",
+                valign: "top"
+            })
+        });
+
+// Create exporting menu for the second chart
+        var exporting2 = am5plugins_exporting.Exporting.new(root2, {
+            menu: am5plugins_exporting.ExportingMenu.new(root2, {
+                align: "left",
+                valign: "top"
+            })
+        });
+
+        var myTheme = am5.Theme.new(root);
+        myTheme.rule("Grid", ["base"]).setAll({
+            strokeOpacity: 0.1
+        });
+
+        // Set themes
+        root.setThemes([
+            am5themes_Animated.new(root),
+            myTheme
+        ]);
+
+        root2.setThemes([
+            am5themes_Animated.new(root2),
+            myTheme
+        ]);
+
+        // Create chart for ratings
+        var chart = root.container.children.push(am5xy.XYChart.new(root, {
+            panX: false,
+            panY: false,
+            wheelX: "panY",
+            wheelY: "zoomY",
+            paddingLeft: 0,
+            layout: root.verticalLayout
+        }));
+
+        // Create chart for warnings
+        var chart2 = root2.container.children.push(am5xy.XYChart.new(root2, {
+            panX: false,
+            panY: false,
+            wheelX: "panY",
+            wheelY: "zoomY",
+            paddingLeft: 0,
+            layout: root2.verticalLayout
+        }));
+
+        // Add scrollbar
+        chart.set("scrollbarY", am5.Scrollbar.new(root, {
+            orientation: "vertical"
+        }));
+
+        chart2.set("scrollbarY", am5.Scrollbar.new(root2, {
+            orientation: "vertical"
+        }));
+
+        // Load data using Ajax
+        $.ajax({
+            url: 'total_counts.json',
+            dataType: 'json',
+            success: function (data) {
+                createChartWithData(root, chart, data, "rating_counts");
+                createChartWithData(root2, chart2, data, "warnings_counts");
+            }
+        });
+
+        // Function to create chart with loaded data
+        function createChartWithData(root, chart, data, dataType) {
+            // Create axes
+            var yRenderer = am5xy.AxisRendererY.new(root, {});
+            var yAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, {
+                categoryField: "relationship",
+                renderer: yRenderer,
+                tooltip: am5.Tooltip.new(root, {})
+            }));
+
+            yRenderer.grid.template.setAll({
+                location: 1
+            });
+
+
+            yAxis.data.setAll(data);
+
+            var xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, {
+                min: 0,
+                maxPrecision: 0,
+                calculateTotals: true,
+                renderer: am5xy.AxisRendererX.new(root, {
+                    minGridDistance: 40,
+                    strokeOpacity: 0.1
+                })
+            }));
+
+            // Add legend
+            var legend = chart.children.push(am5.Legend.new(root, {
+                centerX: am5.p50,
+                x: am5.p50
+            }));
+
+            // Add series
+            function makeSeries(name, fieldName) {
+                var series = chart.series.push(am5xy.ColumnSeries.new(root, {
+                    name: name,
+                    stacked: true,
+                    xAxis: xAxis,
+                    yAxis: yAxis,
+                    baseAxis: yAxis,
+                    valueXField: fieldName,
+                    categoryYField: "relationship"
+                }));
+
+                series.columns.template.setAll({
+                    tooltipText: "{name}: {valueXTotalPercent.formatNumber('#.#')}%",
+                    tooltipY: am5.percent(90)
+                });
+
+
+
+                var seriesData = data.map(function (item) {
+                    return {
+                        relationship: item.relationship,
+                        [fieldName]: item[dataType][name] || 0
+                    };
+                });
+
+                series.data.setAll(seriesData);
+
+                // Make stuff animate on load
+                series.appear();
+
+                series.bullets.push(function () {
+                    return am5.Bullet.new(root, {
+                        sprite: am5.Label.new(root, {
+                            text: "{valueX}",
+                            fill: root.interfaceColors.get("alternativeText"),
+                            centerY: am5.p50,
+                            centerX: am5.p50,
+                            populateText: true
+                        })
+                    });
+                });
+
+                legend.data.push(series);
+            }
+
+            if (dataType === "rating_counts") {
+                makeSeries("Explicit", "Explicit");
+                makeSeries("Mature", "Mature");
+                makeSeries("Teen And Up Audiences", "Teen And Up Audiences");
+                makeSeries("General Audiences", "General Audiences");
+                makeSeries("Not Rated", "Not Rated");
+            } else if (dataType === "warnings_counts") {
+                makeSeries("No Archive Warnings Apply", "No Archive Warnings Apply");
+                makeSeries("Creator Chose Not To Use Archive Warnings", "Creator Chose Not To Use Archive Warnings");
+                makeSeries("Graphic Depictions Of Violence", "Graphic Depictions Of Violence");
+                makeSeries("Major Character Death", "Major Character Death");
+                makeSeries("Rape/Non-Con", "Rape/Non-Con");
+            }
+
+            // Make stuff animate on load
+            chart.appear(1000, 100);
+        }
+
+    }); // end am5.ready()
+</script>
+</body>
+</html>
